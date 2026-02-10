@@ -57,7 +57,9 @@ backtest:
   initial_capital: 100000000  # 1억원
 
 data:
-  news_source: naver  # naver finance news
+  # MarketSense-AI 데이터베이스 통합
+  source: marketsense_db  # marketsense-ai PostgreSQL 사용
+  db_url: postgresql://yrbahn@localhost:5432/marketsense
   cache_dir: ./cache
   
 logging:

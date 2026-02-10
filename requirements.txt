@@ -8,3 +8,7 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 ta>=0.11.0
 python-dotenv>=1.0.0
+
+# MarketSense-AI 데이터베이스 통합
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0

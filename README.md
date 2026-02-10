@@ -58,12 +58,20 @@
 
 ### 데이터 수집 (`src/data/`)
 
+**🔗 MarketSense-AI 데이터베이스 통합** - 중복 수집 제거, 실시간 데이터 공유
+
 | 모듈 | 설명 | 데이터 소스 |
 |------|------|------------|
-| `price_collector.py` | 주가 + 기술적 지표 (SMA, RSI, MACD, 볼린저밴드, ATR) | pykrx (KRX) |
-| `news_collector.py` | 종목별 최근 1주 뉴스 수집 | 네이버 금융 |
-| `fundamental_collector.py` | PER, PBR, 배당수익률 등 재무지표 | pykrx |
-| `data_manager.py` | 전체 데이터 수집 오케스트레이션 | - |
+| `data_loader.py` | **MarketSense-AI PostgreSQL 연동** | marketsense-ai DB |
+| ~~`price_collector.py`~~ | ~~주가 + 기술적 지표~~ | **DB에서 조회** |
+| ~~`news_collector.py`~~ | ~~종목별 뉴스 수집~~ | **DB에서 조회** |
+| ~~`fundamental_collector.py`~~ | ~~재무지표~~ | **DB에서 조회** |
+
+**장점:**
+- ✅ 중복 데이터 수집 제거
+- ✅ marketsense-ai의 자동화된 데이터 파이프라인 활용
+- ✅ 2,884 종목의 방대한 데이터 접근
+- ✅ RAG, 증권사 리포트, 블로그 등 추가 데이터 활용 가능
 
 ### LLM 에이전트 (`src/agents/`)
 
