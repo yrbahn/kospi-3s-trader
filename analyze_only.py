@@ -175,8 +175,26 @@ class PortfolioAnalyzer:
             
             portfolio_id = cur.fetchone()[0]
             
-            # portfolio_stocks에 저장
+            # portfolio_stocks에 저장 (점수 데이터 포함)
             for stock in portfolio.get('portfolio', []):
+                # all_scores에서 해당 종목의 점수 찾기
+                stock_score = next((s for s in all_scores if s['code'] == stock['code']), None)
+                
+                # 점수 데이터를 stock에 추가
+                if stock_score:
+                    stock_with_scores = {
+                        **stock,
+                        'financial_health': stock_score.get('financial_health'),
+                        'growth_potential': stock_score.get('growth_potential'),
+                        'news_sentiment': stock_score.get('news_sentiment'),
+                        'news_impact': stock_score.get('news_impact'),
+                        'price_momentum': stock_score.get('price_momentum'),
+                        'volatility_risk': stock_score.get('volatility_risk'),
+                        'rationale': stock_score.get('rationale', '')
+                    }
+                else:
+                    stock_with_scores = stock
+                
                 cur.execute("""
                     INSERT INTO portfolio_stocks
                     (portfolio_id, stock_code, stock_name, weight, score_data)
@@ -186,7 +204,7 @@ class PortfolioAnalyzer:
                     stock['code'],
                     stock.get('name', 'Unknown'),
                     stock['weight'],
-                    Json(stock)
+                    Json(stock_with_scores)
                 ))
             
             # stock_analysis에 상세 분석 저장
