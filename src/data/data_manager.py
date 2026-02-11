@@ -128,7 +128,7 @@ class DataManager:
         rs = avg_gain / avg_loss if avg_loss > 0 else 0
         rsi = 100 - (100 / (1 + rs))
         
-        return {
+        result = {
             "prices": {
                 "latest_close": latest.get('close', 0) if latest else 0,
                 "latest_volume": latest.get('volume', 0) if latest else 0,
@@ -143,6 +143,38 @@ class DataManager:
                 "avg_volume": sum(volumes) / len(volumes) if volumes else 0
             }
         }
+        
+        # summary 텍스트 생성 (TechnicalAgent용)
+        latest_close = result["prices"]["latest_close"]
+        latest_volume = result["prices"]["latest_volume"]
+        high = result["prices"]["high"]
+        low = result["prices"]["low"]
+        sma_5 = result["indicators"]["sma_5"]
+        sma_20 = result["indicators"]["sma_20"]
+        rsi = result["indicators"]["rsi"]
+        volatility = result["indicators"]["volatility"]
+        avg_volume = result["indicators"]["avg_volume"]
+        
+        summary = f"""
+=== 가격 정보 ===
+현재가: {latest_close:,.0f}원
+거래량: {latest_volume:,.0f}주
+최고가: {high:,.0f}원
+최저가: {low:,.0f}원
+
+=== 이동평균 ===
+5일 평균: {sma_5:,.0f}원
+20일 평균: {sma_20:,.0f}원
+SMA5/SMA20: {(sma_5/sma_20*100):.2f}%
+
+=== 모멘텀 지표 ===
+RSI(14): {rsi:.2f}
+변동성: {volatility:,.0f}원
+평균 거래량: {avg_volume:,.0f}주
+        """.strip()
+        
+        result["summary"] = summary
+        return result
 
     def _format_news_text(self, ticker: str, name: str, news: List[Dict]) -> str:
         """뉴스 리스트를 텍스트로 포맷팅
