@@ -43,10 +43,11 @@ def main():
         # TechnicalAgent 실행
         print("🤖 TechnicalAgent 실행 중...")
         agent = TechnicalAgent(config, prompts)
+        tech_summary = samsung['technical'].get('summary', '데이터 없음')
         result = agent.analyze(
             stock_code='005930',
             stock_name='삼성전자',
-            technical_data=samsung['technical']
+            technical_summary=tech_summary
         )
         
         # 결과 출력

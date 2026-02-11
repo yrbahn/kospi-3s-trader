@@ -81,7 +81,7 @@ score_agent:
     
     반드시 아래 JSON 형식으로만 응답해주세요:
     ```json
-    {
+    {{
       "financial_health": <점수>,
       "growth_potential": <점수>,
       "news_sentiment": <점수>,
@@ -89,7 +89,7 @@ score_agent:
       "price_momentum": <점수>,
       "volatility_risk": <점수>,
       "rationale": "<각 점수의 간단한 근거>"
-    }
+    }}
     ```
 
 selector_agent:
@@ -113,14 +113,14 @@ selector_agent:
     
     반드시 아래 JSON 형식으로만 응답해주세요:
     ```json
-    {
+    {{
       "portfolio": [
-        {"code": "<종목코드>", "name": "<종목명>", "weight": <비중>},
+        {{"code": "<종목코드>", "name": "<종목명>", "weight": <비중>}},
         ...
       ],
       "cash_weight": <현금비중>,
       "rationale": "<포트폴리오 구성 근거>"
-    }
+    }}
     ```
 
 strategy_agent:
@@ -149,12 +149,12 @@ strategy_agent:
     
     반드시 아래 JSON 형식으로만 응답해주세요:
     ```json
-    {
+    {{
       "strategy": "<다음 주 투자 전략 (2-3문장)>",
       "preferred_dimensions": ["<선호 차원1>", "<선호 차원2>"],
       "avoid_dimensions": ["<회피 차원1>"],
       "analysis": "<시장 분석 요약>"
-    }
+    }}
     ```
 
 initial_strategy: |
