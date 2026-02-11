@@ -45,15 +45,26 @@ class SelectorAgent(BaseAgent):
 
         # 비중 검증 (selected_stocks를 portfolio로 변환)
         portfolio = result.get("selected_stocks", result.get("portfolio", []))
-        total_weight = sum(p.get("weight", 0) for p in portfolio)
+        
+        # 키 이름 정규화 (stock_code → code, stock_name → name)
+        normalized_portfolio = []
+        for stock in portfolio:
+            normalized = {
+                "code": stock.get("stock_code", stock.get("code")),
+                "weight": stock.get("weight", 0) / 100.0,  # 백분율 → 비율
+                "name": stock.get("stock_name", stock.get("name", "Unknown"))
+            }
+            normalized_portfolio.append(normalized)
+        
+        total_weight = sum(p["weight"] for p in normalized_portfolio)
 
         if total_weight > 1.0:
             # 비중 정규화
-            for p in portfolio:
+            for p in normalized_portfolio:
                 p["weight"] = p["weight"] / total_weight
             total_weight = 1.0
 
-        result["portfolio"] = portfolio[:self.max_stocks]
+        result["portfolio"] = normalized_portfolio[:self.max_stocks]
         result["cash_weight"] = max(0, 1.0 - total_weight)
 
         return result
