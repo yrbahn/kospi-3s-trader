@@ -158,21 +158,36 @@ class MarketSenseDataLoader:
             statements = []
             for row in results:
                 data = row[2] or {}  # raw_data (JSON)
+                
+                # 새로운 구조 (재무제표별 구분) 처리
+                income = data.get('손익계산서', {})
+                balance = data.get('재무상태표', {})
+                cashflow = data.get('현금흐름표', {})
+                
+                # 구 데이터 호환 (flat 구조)
+                if not income and not balance and not cashflow:
+                    income = data
+                    balance = data
+                    cashflow = data
+                
                 statements.append({
                     'period_end': row[0],
                     'fiscal_quarter': row[1],
                     # 손익계산서
-                    'revenue': data.get('매출액', 0),
-                    'operating_income': data.get('영업이익', 0),
-                    'net_income': data.get('당기순이익', 0),
+                    'revenue': income.get('매출액', 0),
+                    'operating_income': income.get('영업이익', 0),
+                    'net_income': income.get('당기순이익', 0),
                     # 재무상태표
-                    'assets': data.get('자산총계', 0),
-                    'equity': data.get('자본총계', 0),
-                    'liabilities': data.get('부채총계', 0),
+                    'assets': balance.get('자산총계', 0),
+                    'equity': balance.get('자본총계', 0),
+                    'liabilities': balance.get('부채총계', 0),
                     # 현금흐름표
-                    'operating_cash_flow': data.get('영업활동현금흐름', 0),
-                    'investing_cash_flow': data.get('투자활동현금흐름', 0),
-                    'financing_cash_flow': data.get('재무활동현금흐름', 0)
+                    'operating_cash_flow': cashflow.get('영업활동으로인한현금흐름', 
+                                                        cashflow.get('영업활동현금흐름', 0)),
+                    'investing_cash_flow': cashflow.get('투자활동으로인한현금흐름',
+                                                        cashflow.get('투자활동현금흐름', 0)),
+                    'financing_cash_flow': cashflow.get('재무활동으로인한현금흐름',
+                                                        cashflow.get('재무활동현금흐름', 0))
                 })
             
             return statements
