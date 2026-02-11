@@ -23,7 +23,22 @@ class DataManager:
 
     def __init__(self, config: Dict):
         self.config = config
-        self.universe = config.get("stocks", {}).get("universe", {})
+        
+        # universe 로드 (딕셔너리 또는 파일)
+        stocks_config = config.get("stocks", {})
+        universe_file = stocks_config.get("universe_file")
+        
+        if universe_file:
+            # JSON 파일에서 종목 리스트 로드
+            file_path = Path(__file__).parent.parent.parent / universe_file
+            with open(file_path, 'r') as f:
+                tickers = json.load(f)
+            # 리스트 → 딕셔너리 변환 (ticker: name은 나중에 DB에서 조회)
+            self.universe = {ticker: None for ticker in tickers}
+            logger.info(f"universe 파일 로드: {universe_file} ({len(tickers)}개 종목)")
+        else:
+            self.universe = stocks_config.get("universe", {})
+        
         self.lookback_weeks = config.get("trading", {}).get("technical_lookback_weeks", 4)
         
         # MarketSense-AI 데이터 로더

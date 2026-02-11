@@ -74,7 +74,8 @@ class LiveTraderKIS:
                 "KIS_ACCOUNT_NO=12345678-01"
             )
         
-        return KISClient(app_key, app_secret, account_no, mock=True)
+        # 실전투자 모드
+        return KISClient(app_key, app_secret, account_no, mock=False)
 
     def _load_history(self) -> list:
         """거래 이력 로드"""
@@ -185,25 +186,51 @@ class LiveTraderKIS:
         available_cash = balance["cash"]
         
         # 매수 (새 포트폴리오 종목)
+        # ⚠️ 소액 투자 모드: 저가 종목 우선, 최소 1주 매수 가능한 것만
         buys = []
         
+        # 매수 가능한 종목 필터링 (가격 순 정렬)
+        affordable_items = []
         for item in new_portfolio.get("portfolio", []):
             ticker = item["code"]
             name = item["name"]
-            target_weight = item["weight"]
-            
             price = self.kis.get_current_price(ticker)
+            
             if not price or price == 0:
                 logger.warning(f"⚠️ {name}({ticker}) 현재가 조회 실패")
                 continue
             
+            # 최소 1주 매수 가능한지 확인
+            if price <= available_cash * 0.8:  # 현금의 80%까지만 사용 (여유 20%)
+                affordable_items.append({
+                    **item,
+                    "price": price,
+                })
+        
+        # 저가 종목부터 매수 (가격 오름차순)
+        affordable_items.sort(key=lambda x: x["price"])
+        
+        logger.info(f"💰 매수 가능한 종목: {len(affordable_items)}개 (현금: {available_cash:,.0f}원)")
+        
+        for item in affordable_items[:5]:  # 최대 5종목
+            ticker = item["code"]
+            name = item["name"]
+            price = item["price"]
+            target_weight = item["weight"]
+            
+            # 비중에 맞춰 주수 계산 (단, 최소 1주)
             target_value = current_value * target_weight
-            shares = int(target_value / price)
+            shares = max(1, int(target_value / price))
             cost = shares * price
             
-            if shares > 0 and available_cash >= cost:
+            # 현금 부족하면 1주만 매수
+            if cost > available_cash:
+                shares = 1
+                cost = price
+            
+            if available_cash >= cost:
                 # 매수 주문
-                logger.info(f"📈 매수: {name}({ticker}) {shares}주 @ {price:,.0f}원")
+                logger.info(f"📈 매수: {name}({ticker}) {shares}주 @ {price:,.0f}원 = {cost:,.0f}원")
                 success = self.kis.order_buy(ticker, shares)
                 
                 if success:
@@ -215,6 +242,8 @@ class LiveTraderKIS:
                         "cost": cost,
                     })
                     available_cash -= cost
+            else:
+                logger.info(f"⏭️ 건너뜀: {name}({ticker}) - 현금 부족")
         
         # 거래 이력 기록
         self.history.append({
