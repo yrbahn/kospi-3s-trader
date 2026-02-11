@@ -272,14 +272,39 @@ RSI(14): {rsi:.2f}
             if isinstance(period, datetime):
                 period = period.strftime("%Y-%m-%d")
             
+            # 손익계산서 (Income Statement)
             revenue = stmt.get('revenue', 0) / 100000000  # 억원 단위
             op_income = stmt.get('operating_income', 0) / 100000000
             net_income = stmt.get('net_income', 0) / 100000000
             
+            # 재무상태표 (Balance Sheet)
+            assets = stmt.get('assets', 0) / 100000000
+            equity = stmt.get('equity', 0) / 100000000
+            liabilities = stmt.get('liabilities', 0) / 100000000
+            
+            # 현금흐름표 (Cash Flow Statement) - 가능한 경우
+            op_cash_flow = stmt.get('operating_cash_flow', 0) / 100000000
+            invest_cash_flow = stmt.get('investing_cash_flow', 0) / 100000000
+            finance_cash_flow = stmt.get('financing_cash_flow', 0) / 100000000
+            
             lines.append(f"{i}. {period}")
-            lines.append(f"   매출액: {revenue:,.0f}억원")
-            lines.append(f"   영업이익: {op_income:,.0f}억원")
-            lines.append(f"   당기순이익: {net_income:,.0f}억원")
+            lines.append(f"   [손익계산서]")
+            lines.append(f"   - 매출액: {revenue:,.0f}억원")
+            lines.append(f"   - 영업이익: {op_income:,.0f}억원")
+            lines.append(f"   - 당기순이익: {net_income:,.0f}억원")
+            
+            if assets > 0 or equity > 0 or liabilities > 0:
+                lines.append(f"   [재무상태표]")
+                lines.append(f"   - 자산총계: {assets:,.0f}억원")
+                lines.append(f"   - 부채총계: {liabilities:,.0f}억원")
+                lines.append(f"   - 자본총계: {equity:,.0f}억원")
+            
+            if op_cash_flow != 0 or invest_cash_flow != 0 or finance_cash_flow != 0:
+                lines.append(f"   [현금흐름표]")
+                lines.append(f"   - 영업활동: {op_cash_flow:,.0f}억원")
+                lines.append(f"   - 투자활동: {invest_cash_flow:,.0f}억원")
+                lines.append(f"   - 재무활동: {finance_cash_flow:,.0f}억원")
+            
             lines.append("")
         
         return "\n".join(lines)
