@@ -139,7 +139,8 @@ class Backtester:
         )
 
         selected = portfolio.get("portfolio", [])
-        logger.info(f"  선택 종목: {[f'{p['name']}({p['weight']:.0%})' for p in selected]}")
+        selected_str = [f"{p['name']}({p['weight']:.0%})" for p in selected]
+        logger.info(f"  선택 종목: {selected_str}")
         logger.info(f"  현금 비중: {portfolio.get('cash_weight', 0):.0%}")
 
         # 주간 수익률 계산

@@ -1,27 +1,21 @@
-"""MarketSense-AI 데이터베이스 통합 로더
+"""MarketSense-AI 데이터베이스 통합 로더 (독립적 구현)
 
 kospi-3s-trader가 marketsense-ai의 PostgreSQL 데이터베이스를 사용하도록 통합
+marketsense-ai 모듈에 의존하지 않고 직접 DB 쿼리
 """
 import os
-import sys
-from pathlib import Path
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-import logging
-
-# MarketSense-AI 모듈 import
-MARKETSENSE_PATH = Path(__file__).parent.parent.parent.parent / "marketsense-ai"
-sys.path.insert(0, str(MARKETSENSE_PATH))
-
-from src.storage.database import Database
-from src.storage.models import Stock, PriceData, FinancialStatement, NewsData
-from sqlalchemy import and_
+from sqlalchemy import create_engine, and_, text
+from sqlalchemy.orm import sessionmaker
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
 
 class MarketSenseDataLoader:
-    """MarketSense-AI 데이터베이스에서 데이터 로드"""
+    """MarketSense-AI 데이터베이스에서 데이터 로드 (독립적 구현)"""
     
     def __init__(self, db_url: str = None):
         """
@@ -31,11 +25,22 @@ class MarketSenseDataLoader:
         if db_url is None:
             db_url = os.getenv("DATABASE_URL", "postgresql://yrbahn@localhost:5432/marketsense")
         
-        self.db = Database(db_url)
+        self.engine = create_engine(db_url, pool_pre_ping=True)
+        self.SessionLocal = sessionmaker(bind=self.engine)
+        
         logger.info(f"MarketSense-AI DB 연결: {db_url}")
     
+    @contextmanager
+    def get_session(self):
+        """세션 컨텍스트 매니저"""
+        session = self.SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+    
     def get_stock_info(self, ticker: str) -> Optional[Dict]:
-        """종목 기본 정보 조회
+        """종목 기본 정보 조회 (SQL 직접 쿼리)
         
         Args:
             ticker: 종목 코드
@@ -43,22 +48,26 @@ class MarketSenseDataLoader:
         Returns:
             {name, market_cap, sector, ...}
         """
-        with self.db.get_session() as session:
-            stock = session.query(Stock).filter_by(ticker=ticker).first()
-            if not stock:
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT ticker, name, market_cap, sector, industry FROM stocks WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            ).fetchone()
+            
+            if not result:
                 logger.warning(f"{ticker} 종목 정보 없음")
                 return None
             
             return {
-                'ticker': stock.ticker,
-                'name': stock.name,
-                'market_cap': stock.market_cap,
-                'sector': stock.sector,
-                'industry': stock.industry
+                'ticker': result[0],
+                'name': result[1],
+                'market_cap': result[2],
+                'sector': result[3],
+                'industry': result[4]
             }
     
     def get_price_data(self, ticker: str, start_date: datetime, end_date: datetime = None) -> List[Dict]:
-        """가격 데이터 조회
+        """가격 데이터 조회 (SQL 직접 쿼리)
         
         Args:
             ticker: 종목 코드
@@ -71,34 +80,46 @@ class MarketSenseDataLoader:
         if end_date is None:
             end_date = datetime.now()
         
-        with self.db.get_session() as session:
-            stock = session.query(Stock).filter_by(ticker=ticker).first()
-            if not stock:
+        with self.get_session() as session:
+            # 종목 ID 조회
+            stock_id_result = session.execute(
+                text("SELECT id FROM stocks WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            ).fetchone()
+            
+            if not stock_id_result:
                 logger.warning(f"{ticker} 종목 없음")
                 return []
             
-            prices = session.query(PriceData).filter(
-                and_(
-                    PriceData.stock_id == stock.id,
-                    PriceData.date >= start_date,
-                    PriceData.date <= end_date
-                )
-            ).order_by(PriceData.date).all()
+            stock_id = stock_id_result[0]
+            
+            # 가격 데이터 조회
+            results = session.execute(
+                text("""
+                SELECT date, open, high, low, close, volume
+                FROM price_data
+                WHERE stock_id = :stock_id
+                  AND date >= :start_date
+                  AND date <= :end_date
+                ORDER BY date
+                """),
+                {"stock_id": stock_id, "start_date": start_date, "end_date": end_date}
+            ).fetchall()
             
             return [
                 {
-                    'date': p.date,
-                    'open': p.open,
-                    'high': p.high,
-                    'low': p.low,
-                    'close': p.close,
-                    'volume': p.volume
+                    'date': row[0],
+                    'open': row[1],
+                    'high': row[2],
+                    'low': row[3],
+                    'close': row[4],
+                    'volume': row[5]
                 }
-                for p in prices
+                for row in results
             ]
     
     def get_financial_statements(self, ticker: str, lookback_quarters: int = 8) -> List[Dict]:
-        """재무제표 데이터 조회
+        """재무제표 데이터 조회 (SQL 직접 쿼리)
         
         Args:
             ticker: 종목 코드
@@ -107,26 +128,39 @@ class MarketSenseDataLoader:
         Returns:
             [{period_end, revenue, operating_income, net_income, ...}, ...]
         """
-        with self.db.get_session() as session:
-            stock = session.query(Stock).filter_by(ticker=ticker).first()
-            if not stock:
+        with self.get_session() as session:
+            # 종목 ID 조회
+            stock_id_result = session.execute(
+                text("SELECT id FROM stocks WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            ).fetchone()
+            
+            if not stock_id_result:
                 logger.warning(f"{ticker} 종목 없음")
                 return []
             
-            statements = session.query(FinancialStatement).filter(
-                and_(
-                    FinancialStatement.stock_id == stock.id,
-                    FinancialStatement.statement_type == 'income',
-                    FinancialStatement.period_type == 'quarterly'
-                )
-            ).order_by(FinancialStatement.period_end.desc()).limit(lookback_quarters).all()
+            stock_id = stock_id_result[0]
             
-            results = []
-            for stmt in statements:
-                data = stmt.raw_data
-                results.append({
-                    'period_end': stmt.period_end,
-                    'fiscal_quarter': stmt.fiscal_quarter,
+            # 재무제표 조회
+            results = session.execute(
+                text("""
+                SELECT period_end, fiscal_quarter, raw_data
+                FROM financial_statements
+                WHERE stock_id = :stock_id
+                  AND statement_type = 'income'
+                  AND period_type = 'quarterly'
+                ORDER BY period_end DESC
+                LIMIT :limit
+                """),
+                {"stock_id": stock_id, "limit": lookback_quarters}
+            ).fetchall()
+            
+            statements = []
+            for row in results:
+                data = row[2] or {}  # raw_data (JSON)
+                statements.append({
+                    'period_end': row[0],
+                    'fiscal_quarter': row[1],
                     'revenue': data.get('매출액', 0),
                     'operating_income': data.get('영업이익', 0),
                     'net_income': data.get('당기순이익', 0),
@@ -135,10 +169,10 @@ class MarketSenseDataLoader:
                     'liabilities': data.get('부채총계', 0)
                 })
             
-            return results
+            return statements
     
     def get_news(self, ticker: str, lookback_days: int = 30) -> List[Dict]:
-        """뉴스 데이터 조회
+        """뉴스 데이터 조회 (SQL 직접 쿼리)
         
         Args:
             ticker: 종목 코드
@@ -149,27 +183,39 @@ class MarketSenseDataLoader:
         """
         start_date = datetime.now() - timedelta(days=lookback_days)
         
-        with self.db.get_session() as session:
-            stock = session.query(Stock).filter_by(ticker=ticker).first()
-            if not stock:
+        with self.get_session() as session:
+            # 종목 ID 조회
+            stock_id_result = session.execute(
+                text("SELECT id FROM stocks WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            ).fetchone()
+            
+            if not stock_id_result:
                 logger.warning(f"{ticker} 종목 없음")
                 return []
             
-            news = session.query(NewsData).filter(
-                and_(
-                    NewsData.stock_id == stock.id,
-                    NewsData.published_at >= start_date
-                )
-            ).order_by(NewsData.published_at.desc()).all()
+            stock_id = stock_id_result[0]
+            
+            # 뉴스 조회
+            results = session.execute(
+                text("""
+                SELECT published_at, title, content, url
+                FROM news_articles
+                WHERE stock_id = :stock_id
+                  AND published_at >= :start_date
+                ORDER BY published_at DESC
+                """),
+                {"stock_id": stock_id, "start_date": start_date}
+            ).fetchall()
             
             return [
                 {
-                    'published_at': n.published_at,
-                    'title': n.title,
-                    'content': n.content,
-                    'url': n.url
+                    'published_at': row[0],
+                    'title': row[1],
+                    'content': row[2],
+                    'url': row[3]
                 }
-                for n in news
+                for row in results
             ]
     
     def get_all_universe_data(self, tickers: List[str], lookback_weeks: int = 4) -> Dict:
@@ -195,7 +241,7 @@ class MarketSenseDataLoader:
         result = {}
         
         for ticker in tickers:
-            logger.info(f"{ticker} 데이터 로딩...")
+            logger.debug(f"{ticker} 데이터 로딩...")
             
             try:
                 result[ticker] = {

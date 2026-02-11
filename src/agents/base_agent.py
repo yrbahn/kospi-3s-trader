@@ -1,8 +1,13 @@
 """LLM 에이전트 기본 클래스"""
 import json
 import logging
+import os
 from typing import Dict, Any, Optional
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 logger = logging.getLogger("3s_trader")
 
