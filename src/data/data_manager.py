@@ -225,6 +225,21 @@ RSI(14): {rsi:.2f}
         
         return "\n".join(lines)
 
+    def _get_common_stock_ticker(self, ticker: str) -> str:
+        """우선주인 경우 보통주 코드로 변환
+        
+        Args:
+            ticker: 종목 코드
+            
+        Returns:
+            보통주 코드 (우선주가 아니면 원본 반환)
+        """
+        # 우선주 판단: 마지막 자리가 5인 경우
+        if ticker.endswith('5') and len(ticker) == 6:
+            # 5 -> 0으로 변환 (예: 005385 -> 005380)
+            return ticker[:-1] + '0'
+        return ticker
+    
     def _format_fundamental_text(self, ticker: str, name: str, financials: List[Dict]) -> str:
         """재무제표를 텍스트로 포맷팅
         
@@ -236,8 +251,19 @@ RSI(14): {rsi:.2f}
         Returns:
             포맷팅된 재무 텍스트
         """
+        # 우선주인 경우 보통주 데이터 조회
+        original_ticker = ticker
+        if ticker.endswith('5') and len(ticker) == 6 and not financials:
+            common_ticker = self._get_common_stock_ticker(ticker)
+            logger.info(f"우선주 {ticker} → 보통주 {common_ticker} 재무 데이터 조회")
+            # MarketSense-AI DB에서 보통주 재무 데이터 가져오기
+            common_financials = self.data_loader.get_financial_statements(common_ticker, lookback_quarters=4)
+            if common_financials:
+                financials = common_financials
+                name = f"{name} (보통주 재무)"
+        
         if not financials:
-            return f"{name}({ticker}) 재무 데이터 없음"
+            return f"{name}({original_ticker}) 재무 데이터 없음"
         
         lines = [f"=== {name}({ticker}) 재무제표 (최근 {len(financials)}분기) ===\n"]
         
