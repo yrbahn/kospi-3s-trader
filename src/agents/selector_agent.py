@@ -23,10 +23,24 @@ class SelectorAgent(BaseAgent):
         )
 
         response = self.call_llm(system, user)
+        
+        # 디버깅: 응답 저장
+        from datetime import datetime
+        from pathlib import Path
+        debug_dir = Path(__file__).parent.parent.parent / "debug"
+        debug_dir.mkdir(exist_ok=True)
+        debug_file = debug_dir / f"selector_response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write(f"=== SYSTEM ===\n{system}\n\n")
+            f.write(f"=== USER ===\n{user[:500]}...\n\n")
+            f.write(f"=== RESPONSE ===\n{response}\n")
+        logger.info(f"디버그 응답 저장: {debug_file}")
+        
         result = self.parse_json_response(response)
 
         if result is None:
             logger.warning("포트폴리오 선택 파싱 실패, 빈 포트폴리오 반환")
+            logger.warning(f"응답 확인: {debug_file}")
             return {"portfolio": [], "cash_weight": 1.0, "rationale": "파싱 실패"}
 
         # 비중 검증

@@ -131,7 +131,25 @@ class LiveTraderKIS:
         
         # Stage 3: 포트폴리오 구성
         logger.info("📋 Stage 3: 포트폴리오 구성...")
-        scores_text = ScoreAgent.format_scores_text(all_scores)
+        
+        # 점수 높은 상위 50종목만 선택 (입력 크기 감소)
+        # 총점 = 모든 차원 점수의 합
+        for score in all_scores:
+            total = (
+                score.get('financial_health', 0) +
+                score.get('growth_potential', 0) +
+                score.get('news_sentiment', 0) +
+                score.get('news_impact', 0) +
+                score.get('price_momentum', 0) +
+                (10 - score.get('volatility_risk', 5))  # 변동성은 낮을수록 좋음
+            )
+            score['total_score'] = total
+        
+        # 점수 순 정렬 후 상위 50개
+        top_scores = sorted(all_scores, key=lambda x: x['total_score'], reverse=True)[:50]
+        logger.info(f"상위 50종목 선택 (전체 {len(all_scores)}개 중)")
+        
+        scores_text = ScoreAgent.format_scores_text(top_scores)
         new_portfolio = self.selector_agent.select(
             scores_text, self.current_strategy
         )
