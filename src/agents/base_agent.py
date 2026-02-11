@@ -72,5 +72,6 @@ class BaseAgent:
 
             return json.loads(json_str)
         except (ValueError, json.JSONDecodeError) as e:
-            logger.error(f"[{self.agent_name}] JSON 파싱 실패: {e}\n응답: {response[:200]}")
+            logger.error(f"[{self.agent_name}] JSON 파싱 실패: {e}")
+            logger.error(f"[{self.agent_name}] 전체 응답:\n{response}")
             return None
