@@ -76,6 +76,13 @@ class PortfolioAnalyzer:
                 news_analysis, tech_analysis, fund_analysis
             )
             
+            # 분석 내용 저장
+            scores['analysis_data'] = {
+                'news': news_analysis,
+                'technical': tech_analysis,
+                'fundamental': fund_analysis
+            }
+            
             logger.info(
                 f"  [{name}] 재무:{scores['financial_health']} "
                 f"성장:{scores['growth_potential']} "
@@ -145,9 +152,9 @@ class PortfolioAnalyzer:
         new_portfolio['analyzed_at'] = datetime.now().isoformat()
         new_portfolio['execute_date'] = datetime.now().strftime("%Y-%m-%d")
         
-        return new_portfolio
+        return new_portfolio, all_scores
     
-    def save_portfolio(self, portfolio: dict):
+    def save_portfolio(self, portfolio: dict, all_scores: list):
         """포트폴리오를 PostgreSQL에 저장"""
         conn = psycopg2.connect("postgresql://yrbahn@localhost:5432/marketsense")
         cur = conn.cursor()
@@ -182,6 +189,24 @@ class PortfolioAnalyzer:
                     Json(stock)
                 ))
             
+            # stock_analysis에 상세 분석 저장
+            for score in all_scores:
+                if score['code'] in [s['code'] for s in portfolio.get('portfolio', [])]:
+                    analysis = score.get('analysis_data', {})
+                    cur.execute("""
+                        INSERT INTO stock_analysis
+                        (portfolio_id, stock_code, stock_name, news_analysis, technical_analysis, fundamental_analysis, score_rationale)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        portfolio_id,
+                        score['code'],
+                        score['name'],
+                        analysis.get('news', ''),
+                        analysis.get('technical', ''),
+                        analysis.get('fundamental', ''),
+                        score.get('rationale', '')
+                    ))
+            
             conn.commit()
             logger.info(f"✅ 포트폴리오 DB 저장 완료 (ID: {portfolio_id})")
             
@@ -202,10 +227,10 @@ def main():
     analyzer = PortfolioAnalyzer()
     
     # 포트폴리오 분석
-    portfolio = analyzer.analyze_portfolio()
+    portfolio, all_scores = analyzer.analyze_portfolio()
     
     # 저장
-    analyzer.save_portfolio(portfolio)
+    analyzer.save_portfolio(portfolio, all_scores)
     
     # 결과 출력
     logger.info("\n" + "=" * 60)

@@ -235,6 +235,104 @@ if not score_df.empty:
 else:
     st.info("점수 데이터가 없습니다.")
 
+st.divider()
+
+# 종목 상세 분석
+st.header("🔍 종목 상세 분석")
+
+# 종목 선택
+stock_list_query = """
+SELECT DISTINCT stock_code, stock_name
+FROM portfolio_stocks
+ORDER BY stock_name
+"""
+stock_list_df = get_data(stock_list_query)
+
+if not stock_list_df.empty:
+    stock_options = {f"{row['stock_name']} ({row['stock_code']})": row['stock_code'] 
+                     for _, row in stock_list_df.iterrows()}
+    
+    selected_display = st.selectbox("종목 선택", list(stock_options.keys()))
+    selected_code = stock_options[selected_display]
+    
+    # 선택된 종목의 최근 분석 조회
+    analysis_query = f"""
+    SELECT 
+        sa.news_analysis,
+        sa.technical_analysis,
+        sa.fundamental_analysis,
+        sa.score_rationale,
+        ph.execute_date,
+        TO_CHAR(ph.analyzed_at, 'YYYY-MM-DD HH24:MI') as analyzed_time
+    FROM stock_analysis sa
+    JOIN portfolio_history ph ON sa.portfolio_id = ph.id
+    WHERE sa.stock_code = '{selected_code}'
+    ORDER BY ph.analyzed_at DESC
+    LIMIT 1
+    """
+    
+    analysis_df = get_data(analysis_query)
+    
+    if not analysis_df.empty:
+        row = analysis_df.iloc[0]
+        
+        st.info(f"📅 분석 시간: {row['analyzed_time']} | 실행 예정일: {row['execute_date']}")
+        
+        # 탭으로 구분
+        tab1, tab2, tab3, tab4 = st.tabs(["📰 뉴스 분석", "📈 기술적 분석", "💰 재무 분석", "🎯 종합 평가"])
+        
+        with tab1:
+            st.markdown("### 뉴스 분석 (NewsAgent)")
+            if row['news_analysis']:
+                st.text_area("", row['news_analysis'], height=300, disabled=True, label_visibility="collapsed")
+            else:
+                st.info("뉴스 분석 데이터가 없습니다.")
+        
+        with tab2:
+            st.markdown("### 기술적 분석 (TechnicalAgent)")
+            if row['technical_analysis']:
+                st.text_area("", row['technical_analysis'], height=300, disabled=True, label_visibility="collapsed")
+            else:
+                st.info("기술적 분석 데이터가 없습니다.")
+        
+        with tab3:
+            st.markdown("### 재무 분석 (FundamentalAgent)")
+            if row['fundamental_analysis']:
+                st.text_area("", row['fundamental_analysis'], height=300, disabled=True, label_visibility="collapsed")
+            else:
+                st.info("재무 분석 데이터가 없습니다.")
+        
+        with tab4:
+            st.markdown("### 종합 평가 (ScoreAgent)")
+            if row['score_rationale']:
+                st.text_area("", row['score_rationale'], height=300, disabled=True, label_visibility="collapsed")
+            else:
+                st.info("종합 평가 데이터가 없습니다.")
+        
+        # 과거 선택 이력
+        st.markdown("### 📊 과거 선택 이력")
+        history_query = f"""
+        SELECT 
+            TO_CHAR(ph.execute_date, 'YYYY-MM-DD') as "실행일",
+            ROUND(ps.weight * 100, 1) as "비중(%)",
+            CASE WHEN ph.executed THEN '✅ 실행됨' ELSE '⏳ 대기중' END as "상태"
+        FROM portfolio_stocks ps
+        JOIN portfolio_history ph ON ps.portfolio_id = ph.id
+        WHERE ps.stock_code = '{selected_code}'
+        ORDER BY ph.execute_date DESC
+        LIMIT 10
+        """
+        history_df = get_data(history_query)
+        
+        if not history_df.empty:
+            st.dataframe(history_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("선택 이력이 없습니다.")
+    else:
+        st.warning("이 종목의 분석 데이터가 없습니다.")
+else:
+    st.info("포트폴리오 데이터가 없습니다.")
+
 # 푸터
 st.divider()
 st.caption(f"마지막 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
