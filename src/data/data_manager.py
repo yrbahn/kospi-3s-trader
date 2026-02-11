@@ -371,42 +371,29 @@ RSI(14): {rsi:.2f}
             lines.append(f"{i}. {period}")
             lines.append(f"   [손익계산서]")
             lines.append(f"   - 매출액: {revenue:,.0f}억원")
-            if cost_of_sales != 0:
-                lines.append(f"   - 매출원가: {cost_of_sales:,.0f}억원")
-            if gross_profit != 0:
-                lines.append(f"   - 매출총이익: {gross_profit:,.0f}억원")
-            if sg_and_a != 0:
-                lines.append(f"   - 판매관리비: {sg_and_a:,.0f}억원")
+            lines.append(f"   - 매출원가: {cost_of_sales:,.0f}억원")
+            lines.append(f"   - 매출총이익: {gross_profit:,.0f}억원")
+            lines.append(f"   - 판매관리비: {sg_and_a:,.0f}억원")
             lines.append(f"   - 영업이익: {op_income:,.0f}억원")
-            if income_before_tax != 0:
-                lines.append(f"   - 세전순이익: {income_before_tax:,.0f}억원")
+            lines.append(f"   - 세전순이익: {income_before_tax:,.0f}억원")
             lines.append(f"   - 당기순이익: {net_income:,.0f}억원")
             
-            if assets > 0 or equity > 0 or liabilities > 0:
-                lines.append(f"   [재무상태표]")
-                lines.append(f"   - 자산총계: {assets:,.0f}억원")
-                if current_assets > 0:
-                    lines.append(f"     (유동: {current_assets:,.0f}, 비유동: {non_current_assets:,.0f})")
-                if cash > 0:
-                    lines.append(f"   - 현금: {cash:,.0f}억원")
-                if inventory > 0:
-                    lines.append(f"   - 재고: {inventory:,.0f}억원")
-                if ar > 0:
-                    lines.append(f"   - 매출채권: {ar:,.0f}억원")
-                lines.append(f"   - 부채총계: {liabilities:,.0f}억원")
-                if current_liabilities > 0:
-                    lines.append(f"     (유동: {current_liabilities:,.0f}, 비유동: {non_current_liabilities:,.0f})")
-                lines.append(f"   - 자본총계: {equity:,.0f}억원")
-                if retained_earnings > 0:
-                    lines.append(f"   - 이익잉여금: {retained_earnings:,.0f}억원")
+            lines.append(f"   [재무상태표]")
+            lines.append(f"   - 자산총계: {assets:,.0f}억원")
+            lines.append(f"     (유동: {current_assets:,.0f}억, 비유동: {non_current_assets:,.0f}억)")
+            lines.append(f"   - 현금: {cash:,.0f}억원")
+            lines.append(f"   - 재고: {inventory:,.0f}억원")
+            lines.append(f"   - 매출채권: {ar:,.0f}억원")
+            lines.append(f"   - 부채총계: {liabilities:,.0f}억원")
+            lines.append(f"     (유동: {current_liabilities:,.0f}억, 비유동: {non_current_liabilities:,.0f}억)")
+            lines.append(f"   - 자본총계: {equity:,.0f}억원")
+            lines.append(f"   - 이익잉여금: {retained_earnings:,.0f}억원")
             
-            if op_cash_flow != 0 or invest_cash_flow != 0 or finance_cash_flow != 0:
-                lines.append(f"   [현금흐름표]")
-                lines.append(f"   - 영업활동: {op_cash_flow:,.0f}억원")
-                lines.append(f"   - 투자활동: {invest_cash_flow:,.0f}억원")
-                lines.append(f"   - 재무활동: {finance_cash_flow:,.0f}억원")
-                if cash_increase != 0:
-                    lines.append(f"   - 현금증감: {cash_increase:,.0f}억원")
+            lines.append(f"   [현금흐름표]")
+            lines.append(f"   - 영업활동: {op_cash_flow:,.0f}억원")
+            lines.append(f"   - 투자활동: {invest_cash_flow:,.0f}억원")
+            lines.append(f"   - 재무활동: {finance_cash_flow:,.0f}억원")
+            lines.append(f"   - 현금증감: {cash_increase:,.0f}억원")
             
             lines.append("")
         
