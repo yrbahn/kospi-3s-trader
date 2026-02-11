@@ -43,8 +43,8 @@ class SelectorAgent(BaseAgent):
             logger.warning(f"응답 확인: {debug_file}")
             return {"portfolio": [], "cash_weight": 1.0, "rationale": "파싱 실패"}
 
-        # 비중 검증
-        portfolio = result.get("portfolio", [])
+        # 비중 검증 (selected_stocks를 portfolio로 변환)
+        portfolio = result.get("selected_stocks", result.get("portfolio", []))
         total_weight = sum(p.get("weight", 0) for p in portfolio)
 
         if total_weight > 1.0:
