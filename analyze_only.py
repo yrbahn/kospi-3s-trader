@@ -20,7 +20,7 @@ from src.agents.score_agent import ScoreAgent
 from src.agents.selector_agent import SelectorAgent
 from src.agents.strategy_agent import StrategyAgent
 from src.data.data_manager import DataManager
-from src.utils.helpers import load_config
+from src.utils.helpers import load_config, load_prompts
 import psycopg2
 from psycopg2.extras import Json
 
@@ -46,7 +46,7 @@ class PortfolioAnalyzer:
     
     def __init__(self):
         self.config = load_config()
-        self.prompts = self.config.get("prompts", {})
+        self.prompts = load_prompts()
         
         # 에이전트 초기화
         self.news_agent = NewsAgent(self.config, self.prompts)
