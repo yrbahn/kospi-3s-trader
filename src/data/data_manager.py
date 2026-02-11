@@ -170,19 +170,57 @@ class DataManager:
         volatility = result["indicators"]["volatility"]
         avg_volume = result["indicators"]["avg_volume"]
         
+        # 일일 데이터 포맷팅 (최근 20 거래일, 4주)
+        daily_lines = ["=== 일일 가격 및 기술적 지표 (최근 4주) ===\n"]
+        
+        for i, price_data in enumerate(prices[-20:]):  # 최근 20일
+            date = price_data.get('date', 'N/A')
+            if isinstance(date, datetime):
+                date = date.strftime("%Y-%m-%d")
+            
+            open_price = price_data.get('open', 0)
+            high_price = price_data.get('high', 0)
+            low_price = price_data.get('low', 0)
+            close_price = price_data.get('close', 0)
+            volume = price_data.get('volume', 0)
+            
+            # 일일 RSI 계산 (간단 버전 - 해당 시점까지의 데이터로)
+            day_closes = closes[:len(prices[-20:][:i+1])]
+            if len(day_closes) > 1:
+                day_gains = []
+                day_losses = []
+                for j in range(1, len(day_closes)):
+                    change = day_closes[j] - day_closes[j-1]
+                    if change > 0:
+                        day_gains.append(change)
+                    else:
+                        day_losses.append(abs(change))
+                
+                day_avg_gain = sum(day_gains) / len(day_gains) if day_gains else 0
+                day_avg_loss = sum(day_losses) / len(day_losses) if day_losses else 1
+                day_rs = day_avg_gain / day_avg_loss if day_avg_loss > 0 else 0
+                day_rsi = 100 - (100 / (1 + day_rs))
+            else:
+                day_rsi = 50.0
+            
+            daily_lines.append(
+                f"{date}: 시가 {open_price:,.0f} 고가 {high_price:,.0f} "
+                f"저가 {low_price:,.0f} 종가 {close_price:,.0f}"
+            )
+            daily_lines.append(f"        거래량 {volume:,.0f}주, RSI {day_rsi:.1f}")
+        
+        daily_data = "\n".join(daily_lines)
+        
+        # 요약 정보
         summary = f"""
-=== 가격 정보 ===
+{daily_data}
+
+=== 요약 지표 ===
 현재가: {latest_close:,.0f}원
-거래량: {latest_volume:,.0f}주
-최고가: {high:,.0f}원
-최저가: {low:,.0f}원
-
-=== 이동평균 ===
-5일 평균: {sma_5:,.0f}원
-20일 평균: {sma_20:,.0f}원
-SMA5/SMA20: {(sma_5/sma_20*100):.2f}%
-
-=== 모멘텀 지표 ===
+최고가: {high:,.0f}원 (4주)
+최저가: {low:,.0f}원 (4주)
+5일 이동평균: {sma_5:,.0f}원
+20일 이동평균: {sma_20:,.0f}원
 RSI(14): {rsi:.2f}
 변동성: {volatility:,.0f}원
 평균 거래량: {avg_volume:,.0f}주
