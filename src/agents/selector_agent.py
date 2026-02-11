@@ -46,15 +46,42 @@ class SelectorAgent(BaseAgent):
         # 비중 검증 (selected_stocks를 portfolio로 변환)
         portfolio = result.get("selected_stocks", result.get("portfolio", []))
         
-        # 키 이름 정규화 (stock_code → code, stock_name → name)
+        # 키 이름 정규화 + DB에서 종목명 조회
+        import psycopg2
         normalized_portfolio = []
-        for stock in portfolio:
-            normalized = {
-                "code": stock.get("stock_code", stock.get("code")),
-                "weight": stock.get("weight", 0) / 100.0,  # 백분율 → 비율
-                "name": stock.get("stock_name", stock.get("name", "Unknown"))
-            }
-            normalized_portfolio.append(normalized)
+        
+        # DB 연결
+        try:
+            conn = psycopg2.connect("postgresql://yrbahn@localhost:5432/marketsense")
+            cur = conn.cursor()
+            
+            for stock in portfolio:
+                stock_code = stock.get("stock_code", stock.get("code"))
+                
+                # DB에서 종목명 조회
+                cur.execute("SELECT name FROM stocks WHERE ticker = %s", (stock_code,))
+                row = cur.fetchone()
+                stock_name = row[0] if row else "Unknown"
+                
+                normalized = {
+                    "code": stock_code,
+                    "weight": stock.get("weight", 0) / 100.0,  # 백분율 → 비율
+                    "name": stock_name
+                }
+                normalized_portfolio.append(normalized)
+            
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"종목명 조회 실패: {e}")
+            # 실패 시 기본값 사용
+            for stock in portfolio:
+                normalized = {
+                    "code": stock.get("stock_code", stock.get("code")),
+                    "weight": stock.get("weight", 0) / 100.0,
+                    "name": stock.get("stock_name", stock.get("name", "Unknown"))
+                }
+                normalized_portfolio.append(normalized)
         
         total_weight = sum(p["weight"] for p in normalized_portfolio)
 
