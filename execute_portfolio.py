@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.kis.kis_client import KISClient
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # 로깅 설정
 logging.basicConfig(
@@ -45,19 +47,48 @@ class PortfolioExecutor:
             raise ValueError("KIS API 인증 정보가 없습니다!")
         
         self.kis = KISClient(app_key, app_secret, account_no, mock=False)
+        self.portfolio_id = None
     
     def load_portfolio(self) -> dict:
-        """저장된 포트폴리오 로드"""
-        if not PORTFOLIO_FILE.exists():
-            raise FileNotFoundError(f"포트폴리오 파일 없음: {PORTFOLIO_FILE}")
+        """DB에서 실행 대기 중인 포트폴리오 로드"""
+        conn = psycopg2.connect("postgresql://yrbahn@localhost:5432/marketsense")
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
-            portfolio = json.load(f)
-        
-        logger.info(f"✅ 포트폴리오 로드: {PORTFOLIO_FILE}")
-        logger.info(f"   분석 시간: {portfolio.get('analyzed_at')}")
-        
-        return portfolio
+        try:
+            # 오늘 날짜의 미실행 포트폴리오 조회
+            today = datetime.now().date()
+            
+            cur.execute("""
+                SELECT id, portfolio_json, analyzed_at, execute_date, cash_weight, rationale
+                FROM portfolio_history
+                WHERE execute_date = %s AND executed = FALSE
+                ORDER BY analyzed_at DESC
+                LIMIT 1
+            """, (today,))
+            
+            row = cur.fetchone()
+            
+            if not row:
+                # JSON 파일 백업에서 로드
+                logger.warning("⚠️ DB에 포트폴리오 없음, JSON 파일 사용")
+                if not PORTFOLIO_FILE.exists():
+                    raise FileNotFoundError("포트폴리오가 없습니다!")
+                
+                with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            
+            self.portfolio_id = row['id']
+            portfolio = row['portfolio_json']
+            
+            logger.info(f"✅ 포트폴리오 DB 로드 (ID: {self.portfolio_id})")
+            logger.info(f"   분석 시간: {row['analyzed_at']}")
+            logger.info(f"   실행 예정일: {row['execute_date']}")
+            
+            return portfolio
+            
+        finally:
+            cur.close()
+            conn.close()
     
     def execute(self):
         """포트폴리오 실행"""
@@ -178,6 +209,22 @@ class PortfolioExecutor:
         logger.info(f"사용: {used_cash:,.0f}원")
         logger.info(f"잔액: {current_cash - used_cash:,.0f}원 (예상)")
         logger.info("=" * 60)
+        
+        # DB에 실행 완료 표시
+        if self.portfolio_id:
+            conn = psycopg2.connect("postgresql://yrbahn@localhost:5432/marketsense")
+            cur = conn.cursor()
+            try:
+                cur.execute("""
+                    UPDATE portfolio_history
+                    SET executed = TRUE, executed_at = NOW()
+                    WHERE id = %s
+                """, (self.portfolio_id,))
+                conn.commit()
+                logger.info(f"✅ DB 실행 기록 업데이트 (ID: {self.portfolio_id})")
+            finally:
+                cur.close()
+                conn.close()
 
 
 def main():

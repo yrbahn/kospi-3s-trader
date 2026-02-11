@@ -21,6 +21,8 @@ from src.agents.selector_agent import SelectorAgent
 from src.agents.strategy_agent import StrategyAgent
 from src.data.data_manager import DataManager
 from src.utils.helpers import load_config
+import psycopg2
+from psycopg2.extras import Json
 
 # 로깅 설정
 logging.basicConfig(
@@ -146,10 +148,54 @@ class PortfolioAnalyzer:
         return new_portfolio
     
     def save_portfolio(self, portfolio: dict):
-        """포트폴리오 저장"""
-        with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
-            json.dump(portfolio, f, ensure_ascii=False, indent=2)
-        logger.info(f"✅ 포트폴리오 저장: {PORTFOLIO_FILE}")
+        """포트폴리오를 PostgreSQL에 저장"""
+        conn = psycopg2.connect("postgresql://yrbahn@localhost:5432/marketsense")
+        cur = conn.cursor()
+        
+        try:
+            # portfolio_history에 저장
+            cur.execute("""
+                INSERT INTO portfolio_history 
+                (execute_date, portfolio_json, cash_weight, rationale)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (
+                portfolio['execute_date'],
+                Json(portfolio),
+                portfolio.get('cash_weight', 0),
+                portfolio.get('rationale', '')
+            ))
+            
+            portfolio_id = cur.fetchone()[0]
+            
+            # portfolio_stocks에 저장
+            for stock in portfolio.get('portfolio', []):
+                cur.execute("""
+                    INSERT INTO portfolio_stocks
+                    (portfolio_id, stock_code, stock_name, weight, score_data)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (
+                    portfolio_id,
+                    stock['code'],
+                    stock.get('name', 'Unknown'),
+                    stock['weight'],
+                    Json(stock)
+                ))
+            
+            conn.commit()
+            logger.info(f"✅ 포트폴리오 DB 저장 완료 (ID: {portfolio_id})")
+            
+            # JSON 파일에도 백업 저장
+            with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+                json.dump(portfolio, f, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"❌ DB 저장 실패: {e}")
+            raise
+        finally:
+            cur.close()
+            conn.close()
 
 
 def main():
