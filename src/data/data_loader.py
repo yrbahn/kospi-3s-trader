@@ -173,21 +173,41 @@ class MarketSenseDataLoader:
                 statements.append({
                     'period_end': row[0],
                     'fiscal_quarter': row[1],
-                    # 손익계산서
+                    # 손익계산서 (Income Statement)
                     'revenue': income.get('매출액', 0),
+                    'cost_of_sales': income.get('매출원가', 0),
+                    'gross_profit': income.get('매출총이익', 0),
+                    'selling_general_admin': income.get('판매비와관리비', income.get('판매비와일반관리비', 0)),
                     'operating_income': income.get('영업이익', 0),
+                    'non_operating_income': income.get('영업외수익', 0),
+                    'non_operating_expense': income.get('영업외비용', 0),
+                    'income_before_tax': income.get('법인세비용차감전순이익', 0),
+                    'income_tax': income.get('법인세비용', 0),
                     'net_income': income.get('당기순이익', 0),
-                    # 재무상태표
+                    # 재무상태표 (Balance Sheet)
                     'assets': balance.get('자산총계', 0),
-                    'equity': balance.get('자본총계', 0),
+                    'current_assets': balance.get('유동자산', 0),
+                    'non_current_assets': balance.get('비유동자산', 0),
+                    'cash_and_equivalents': balance.get('현금및현금성자산', 0),
+                    'inventory': balance.get('재고자산', 0),
+                    'accounts_receivable': balance.get('매출채권', 0),
                     'liabilities': balance.get('부채총계', 0),
-                    # 현금흐름표
+                    'current_liabilities': balance.get('유동부채', 0),
+                    'non_current_liabilities': balance.get('비유동부채', 0),
+                    'accounts_payable': balance.get('매입채무', 0),
+                    'equity': balance.get('자본총계', 0),
+                    'retained_earnings': balance.get('이익잉여금', 0),
+                    # 현금흐름표 (Cash Flow Statement)
                     'operating_cash_flow': cashflow.get('영업활동으로인한현금흐름', 
                                                         cashflow.get('영업활동현금흐름', 0)),
                     'investing_cash_flow': cashflow.get('투자활동으로인한현금흐름',
                                                         cashflow.get('투자활동현금흐름', 0)),
                     'financing_cash_flow': cashflow.get('재무활동으로인한현금흐름',
-                                                        cashflow.get('재무활동현금흐름', 0))
+                                                        cashflow.get('재무활동현금흐름', 0)),
+                    'cash_increase': cashflow.get('현금의증가(감소)', 
+                                                  cashflow.get('현금및현금성자산의증가', 0)),
+                    'beginning_cash': cashflow.get('기초현금및현금성자산', 0),
+                    'ending_cash': cashflow.get('기말현금및현금성자산', 0)
                 })
             
             return statements
