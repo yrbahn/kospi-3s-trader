@@ -161,9 +161,15 @@ class DataManager:
         lines = [f"=== {name}({ticker}) 최근 뉴스 ({len(news)}건) ===\n"]
         
         for i, item in enumerate(news[:10], 1):  # 최대 10개
-            pub_date = item['published_at'].strftime("%Y-%m-%d") if isinstance(item['published_at'], datetime) else str(item['published_at'])
-            title = item['title']
-            content = item.get('content', '')[:200]  # 최대 200자
+            pub_date = item.get('published_at', 'N/A')
+            if isinstance(pub_date, datetime):
+                pub_date = pub_date.strftime("%Y-%m-%d")
+            else:
+                pub_date = str(pub_date)
+            
+            title = item.get('title', '제목 없음')
+            content = item.get('content') or ''  # None 처리
+            content = content[:200] if content else ''  # 최대 200자
             
             lines.append(f"{i}. [{pub_date}] {title}")
             if content:
