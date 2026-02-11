@@ -89,8 +89,37 @@ class LiveTraderKIS:
         with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.history, f, ensure_ascii=False, indent=2)
 
+    def _analyze_single_stock(self, ticker: str, data: dict) -> dict:
+        """단일 종목 분석 (병렬 처리용)"""
+        name = data["name"]
+        
+        try:
+            # 3개 에이전트 분석
+            news_analysis = self.news_agent.analyze(ticker, name, data["news_text"])
+            tech_summary = data["technical"].get("summary", "데이터 없음")
+            tech_analysis = self.technical_agent.analyze(ticker, name, tech_summary)
+            fund_analysis = self.fundamental_agent.analyze(ticker, name, data["fundamental_text"])
+            
+            # 점수 평가
+            scores = self.score_agent.score(
+                ticker, name,
+                news_analysis, tech_analysis, fund_analysis
+            )
+            
+            logger.info(
+                f"  [{name}] 재무:{scores['financial_health']} "
+                f"성장:{scores['growth_potential']} "
+                f"뉴스감성:{scores['news_sentiment']}"
+            )
+            return scores
+        except Exception as e:
+            logger.error(f"[{name}] 분석 실패: {e}")
+            return None
+
     def run_weekly_analysis(self) -> dict:
         """주간 3S-Trader 분석 실행"""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
         logger.info("🚀 주간 3S-Trader 분석 시작")
         
         today = datetime.now().strftime("%Y%m%d")
@@ -99,35 +128,27 @@ class LiveTraderKIS:
         logger.info("📊 Stage 1: 시장 데이터 분석...")
         all_data = self.data_manager.collect_all_data(today)
         
-        # Stage 2: 종목 점수 평가
-        logger.info("🎯 Stage 2: 종목 점수 평가...")
+        # Stage 2: 종목 점수 평가 (병렬 처리)
+        logger.info("🎯 Stage 2: 종목 점수 평가... (병렬 처리 10개 동시)")
         all_scores = []
         
-        for ticker, data in all_data.items():
-            name = data["name"]
+        # 병렬 처리: 10개 종목을 동시에 분석
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # 모든 종목에 대해 분석 작업 제출
+            future_to_ticker = {
+                executor.submit(self._analyze_single_stock, ticker, data): ticker
+                for ticker, data in all_data.items()
+            }
             
-            try:
-                # 3개 에이전트 분석
-                news_analysis = self.news_agent.analyze(ticker, name, data["news_text"])
-                tech_summary = data["technical"].get("summary", "데이터 없음")
-                tech_analysis = self.technical_agent.analyze(ticker, name, tech_summary)
-                fund_analysis = self.fundamental_agent.analyze(ticker, name, data["fundamental_text"])
-                
-                # 점수 평가
-                scores = self.score_agent.score(
-                    ticker, name,
-                    news_analysis, tech_analysis, fund_analysis
-                )
-                all_scores.append(scores)
-                
-                logger.info(
-                    f"  [{name}] 재무:{scores['financial_health']} "
-                    f"성장:{scores['growth_potential']} "
-                    f"뉴스감성:{scores['news_sentiment']}"
-                )
-            except Exception as e:
-                logger.error(f"[{name}] 분석 실패: {e}")
-                continue
+            # 완료되는 대로 결과 수집
+            for future in as_completed(future_to_ticker):
+                try:
+                    result = future.result()
+                    if result is not None:
+                        all_scores.append(result)
+                except Exception as e:
+                    ticker = future_to_ticker[future]
+                    logger.error(f"[{ticker}] 병렬 처리 실패: {e}")
         
         # Stage 3: 포트폴리오 구성
         logger.info("📋 Stage 3: 포트폴리오 구성...")
