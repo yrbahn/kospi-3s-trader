@@ -173,6 +173,9 @@ class DataManager:
         # 일일 데이터 포맷팅 (최근 20 거래일, 4주)
         daily_lines = ["=== 일일 가격 및 기술적 지표 (최근 4주) ===\n"]
         
+        # 전체 평균 거래량 계산
+        avg_volume = sum(volumes) / len(volumes) if volumes else 1
+        
         for i, price_data in enumerate(prices[-20:]):  # 최근 20일
             date = price_data.get('date', 'N/A')
             if isinstance(date, datetime):
@@ -184,8 +187,29 @@ class DataManager:
             close_price = price_data.get('close', 0)
             volume = price_data.get('volume', 0)
             
-            # 일일 RSI 계산 (간단 버전 - 해당 시점까지의 데이터로)
-            day_closes = closes[:len(prices[-20:][:i+1])]
+            # 해당 시점까지의 종가 데이터
+            idx = len(prices) - 20 + i
+            day_closes = closes[:idx+1]
+            
+            # 일일 SMA5, SMA20 계산
+            day_sma_5 = sum(day_closes[-5:]) / min(len(day_closes), 5) if len(day_closes) >= 1 else close_price
+            day_sma_20 = sum(day_closes[-20:]) / min(len(day_closes), 20) if len(day_closes) >= 1 else close_price
+            
+            # 볼린저밴드 (20일 기준)
+            if len(day_closes) >= 20:
+                bb_middle = sum(day_closes[-20:]) / 20
+                bb_std = (sum((p - bb_middle) ** 2 for p in day_closes[-20:]) / 20) ** 0.5
+                bb_upper = bb_middle + (2 * bb_std)
+                bb_lower = bb_middle - (2 * bb_std)
+            else:
+                bb_middle = close_price
+                bb_upper = close_price * 1.1
+                bb_lower = close_price * 0.9
+            
+            # 거래량 비율 (평균 대비)
+            volume_ratio = (volume / avg_volume * 100) if avg_volume > 0 else 100
+            
+            # 일일 RSI 계산
             if len(day_closes) > 1:
                 day_gains = []
                 day_losses = []
@@ -207,7 +231,13 @@ class DataManager:
                 f"{date}: 시가 {open_price:,.0f} 고가 {high_price:,.0f} "
                 f"저가 {low_price:,.0f} 종가 {close_price:,.0f}"
             )
-            daily_lines.append(f"        거래량 {volume:,.0f}주, RSI {day_rsi:.1f}")
+            daily_lines.append(
+                f"        거래량 {volume:,.0f}주 (평균의 {volume_ratio:.1f}%), RSI {day_rsi:.1f}"
+            )
+            daily_lines.append(
+                f"        SMA5 {day_sma_5:,.0f} SMA20 {day_sma_20:,.0f} "
+                f"볼린저 {bb_lower:,.0f}/{bb_middle:,.0f}/{bb_upper:,.0f}"
+            )
         
         daily_data = "\n".join(daily_lines)
         
