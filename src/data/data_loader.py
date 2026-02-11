@@ -141,13 +141,13 @@ class MarketSenseDataLoader:
             
             stock_id = stock_id_result[0]
             
-            # 재무제표 조회
+            # 재무제표 조회 (consolidated 우선, 없으면 dart_comprehensive)
             results = session.execute(
                 text("""
                 SELECT period_end, fiscal_quarter, raw_data
                 FROM financial_statements
                 WHERE stock_id = :stock_id
-                  AND statement_type = 'income'
+                  AND statement_type IN ('consolidated', 'dart_comprehensive')
                   AND period_type = 'quarterly'
                 ORDER BY period_end DESC
                 LIMIT :limit
