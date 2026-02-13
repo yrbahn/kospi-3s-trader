@@ -77,8 +77,8 @@ class DataManager:
             # 1. 기술적 데이터 (가격 + 지표)
             tech_data = self._format_technical_data(stock_data.get('prices', []))
             
-            # 2. 뉴스 데이터
-            news_text = self._format_news_text(ticker, name, stock_data.get('news', []))
+            # 2. 뉴스 + 블로그 데이터
+            news_text = self._format_news_text(ticker, name, stock_data.get('news', []), stock_data.get('blogs', []))
             
             # 3. 재무 데이터
             fundamental_text = self._format_fundamental_text(ticker, name, stock_data.get('financials', []))
@@ -259,38 +259,64 @@ RSI(14): {rsi:.2f}
         result["summary"] = summary
         return result
 
-    def _format_news_text(self, ticker: str, name: str, news: List[Dict]) -> str:
-        """뉴스 리스트를 텍스트로 포맷팅
-        
+    def _format_news_text(self, ticker: str, name: str, news: List[Dict], blogs: List[Dict] = None) -> str:
+        """뉴스 + 블로그 리스트를 텍스트로 포맷팅
+
         Args:
             ticker: 종목 코드
             name: 종목명
             news: [{published_at, title, content, url}, ...]
-            
+            blogs: [{post_date, title, description, blogger_name, quality_score}, ...]
+
         Returns:
-            포맷팅된 뉴스 텍스트
+            포맷팅된 뉴스+블로그 텍스트
         """
-        if not news:
-            return f"{name}({ticker}) 최근 뉴스 없음"
-        
-        lines = [f"=== {name}({ticker}) 최근 뉴스 ({len(news)}건) ===\n"]
-        
-        for i, item in enumerate(news[:10], 1):  # 최대 10개
-            pub_date = item.get('published_at', 'N/A')
-            if isinstance(pub_date, datetime):
-                pub_date = pub_date.strftime("%Y-%m-%d")
-            else:
-                pub_date = str(pub_date)
-            
-            title = item.get('title', '제목 없음')
-            content = item.get('content') or ''  # None 처리
-            content = content[:200] if content else ''  # 최대 200자
-            
-            lines.append(f"{i}. [{pub_date}] {title}")
-            if content:
-                lines.append(f"   {content}...")
-            lines.append("")
-        
+        lines = []
+
+        # 뉴스 섹션
+        if news:
+            lines.append(f"=== {name}({ticker}) 최근 뉴스 ({len(news)}건) ===\n")
+            for i, item in enumerate(news[:10], 1):  # 최대 10개
+                pub_date = item.get('published_at', 'N/A')
+                if isinstance(pub_date, datetime):
+                    pub_date = pub_date.strftime("%Y-%m-%d")
+                else:
+                    pub_date = str(pub_date)
+
+                title = item.get('title', '제목 없음')
+                content = item.get('content') or ''
+                content = content[:200] if content else ''
+
+                lines.append(f"{i}. [{pub_date}] {title}")
+                if content:
+                    lines.append(f"   {content}...")
+                lines.append("")
+
+        # 블로그 섹션
+        if blogs:
+            lines.append(f"=== {name}({ticker}) 최근 블로그 ({len(blogs)}건) ===\n")
+            for i, item in enumerate(blogs[:10], 1):  # 최대 10개
+                post_date = item.get('post_date', 'N/A')
+                if isinstance(post_date, datetime):
+                    post_date = post_date.strftime("%Y-%m-%d")
+                else:
+                    post_date = str(post_date)
+
+                title = item.get('title', '제목 없음')
+                blogger = item.get('blogger_name', '')
+                description = item.get('description') or ''
+                description = description[:200] if description else ''
+
+                lines.append(f"{i}. [{post_date}] {title}")
+                if blogger:
+                    lines.append(f"   작성자: {blogger}")
+                if description:
+                    lines.append(f"   {description}...")
+                lines.append("")
+
+        if not lines:
+            return f"{name}({ticker}) 최근 뉴스/블로그 없음"
+
         return "\n".join(lines)
 
     def _get_common_stock_ticker(self, ticker: str) -> str:

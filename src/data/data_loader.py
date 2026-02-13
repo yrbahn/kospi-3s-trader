@@ -274,6 +274,51 @@ class MarketSenseDataLoader:
                 for row in results
             ]
     
+    def get_blog_posts(self, ticker: str, lookback_days: int = 30) -> List[Dict]:
+        """블로그 데이터 조회
+
+        Args:
+            ticker: 종목 코드
+            lookback_days: 몇 일 전까지 조회할지
+
+        Returns:
+            [{post_date, title, description, blogger_name, quality_score}, ...]
+        """
+        start_date = datetime.now() - timedelta(days=lookback_days)
+
+        with self.get_session() as session:
+            stock_id_result = session.execute(
+                text("SELECT id FROM stocks WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            ).fetchone()
+
+            if not stock_id_result:
+                return []
+
+            stock_id = stock_id_result[0]
+
+            results = session.execute(
+                text("""
+                SELECT post_date, title, description, blogger_name, quality_score
+                FROM blog_posts
+                WHERE stock_id = :stock_id
+                  AND post_date >= :start_date
+                ORDER BY post_date DESC
+                """),
+                {"stock_id": stock_id, "start_date": start_date}
+            ).fetchall()
+
+            return [
+                {
+                    'post_date': row[0],
+                    'title': row[1],
+                    'description': row[2],
+                    'blogger_name': row[3],
+                    'quality_score': row[4]
+                }
+                for row in results
+            ]
+
     def get_all_universe_data(self, tickers: List[str], lookback_weeks: int = 4) -> Dict:
         """전체 universe의 데이터를 한 번에 조회
         
@@ -287,7 +332,8 @@ class MarketSenseDataLoader:
                     'info': {...},
                     'prices': [...],
                     'financials': [...],
-                    'news': [...]
+                    'news': [...],
+                    'blogs': [...]
                 },
                 ...
             }
@@ -304,7 +350,8 @@ class MarketSenseDataLoader:
                     'info': self.get_stock_info(ticker),
                     'prices': self.get_price_data(ticker, start_date),
                     'financials': self.get_financial_statements(ticker, lookback_quarters=4),  # 논문: 4분기
-                    'news': self.get_news(ticker, lookback_days=lookback_weeks*7)
+                    'news': self.get_news(ticker, lookback_days=lookback_weeks*7),
+                    'blogs': self.get_blog_posts(ticker, lookback_days=lookback_weeks*7)
                 }
             except Exception as e:
                 logger.error(f"{ticker} 데이터 로딩 실패: {e}")
@@ -312,7 +359,8 @@ class MarketSenseDataLoader:
                     'info': None,
                     'prices': [],
                     'financials': [],
-                    'news': []
+                    'news': [],
+                    'blogs': []
                 }
         
         return result
