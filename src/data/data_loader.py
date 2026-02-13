@@ -141,73 +141,88 @@ class MarketSenseDataLoader:
             
             stock_id = stock_id_result[0]
             
-            # 재무제표 조회 (consolidated 우선, 없으면 dart_comprehensive)
+            # 재무제표 조회
             results = session.execute(
                 text("""
                 SELECT period_end, fiscal_quarter, raw_data
                 FROM financial_statements
                 WHERE stock_id = :stock_id
-                  AND statement_type IN ('consolidated', 'dart_comprehensive')
+                  AND statement_type = 'income'
                   AND period_type = 'quarterly'
                 ORDER BY period_end DESC
                 LIMIT :limit
                 """),
                 {"stock_id": stock_id, "limit": lookback_quarters}
             ).fetchall()
-            
+
             statements = []
             for row in results:
                 data = row[2] or {}  # raw_data (JSON)
-                
-                # 새로운 구조 (재무제표별 구분) 처리
-                income = data.get('손익계산서', {})
-                balance = data.get('재무상태표', {})
-                cashflow = data.get('현금흐름표', {})
-                
-                # 구 데이터 호환 (flat 구조)
-                if not income and not balance and not cashflow:
-                    income = data
-                    balance = data
-                    cashflow = data
-                
+
+                # DB에서 직접 가져오는 값
+                revenue = data.get('revenue', 0) or 0
+                cost_of_sales = data.get('cost_of_revenue', 0) or 0
+                gross_profit = data.get('gross_profit', 0) or 0
+                sga = data.get('sga_expenses', 0) or 0
+                operating_income = data.get('operating_income', 0) or 0
+                net_income = data.get('net_income', 0) or 0
+                total_assets = data.get('total_assets', 0) or 0
+                current_assets = data.get('current_assets', 0) or 0
+                total_liabilities = data.get('total_liabilities', 0) or 0
+                current_liabilities = data.get('current_liabilities', 0) or 0
+                total_equity = data.get('total_equity', 0) or 0
+                op_cf = data.get('operating_cash_flow', 0) or 0
+                inv_cf = data.get('investing_cash_flow', 0) or 0
+                fin_cf = data.get('financing_cash_flow', 0) or 0
+                depreciation = data.get('depreciation_amortization', 0) or 0
+
+                # DB에 없는 항목 계산
+                non_current_assets = total_assets - current_assets
+                non_current_liabilities = total_liabilities - current_liabilities
+                income_before_tax = net_income + (data.get('income_tax', 0) or 0) if data.get('income_tax') else 0
+                cash_increase = op_cf + inv_cf + fin_cf
+                free_cash_flow = op_cf + inv_cf  # FCF = 영업CF + 투자CF (capex 포함)
+
                 statements.append({
                     'period_end': row[0],
                     'fiscal_quarter': row[1],
                     # 손익계산서 (Income Statement)
-                    'revenue': income.get('매출액', 0),
-                    'cost_of_sales': income.get('매출원가', 0),
-                    'gross_profit': income.get('매출총이익', 0),
-                    'selling_general_admin': income.get('판매비와관리비', income.get('판매비와일반관리비', 0)),
-                    'operating_income': income.get('영업이익', 0),
-                    'non_operating_income': income.get('영업외수익', 0),
-                    'non_operating_expense': income.get('영업외비용', 0),
-                    'income_before_tax': income.get('법인세비용차감전순이익', 0),
-                    'income_tax': income.get('법인세비용', 0),
-                    'net_income': income.get('당기순이익', 0),
+                    'revenue': revenue,
+                    'cost_of_sales': cost_of_sales,
+                    'gross_profit': gross_profit,
+                    'selling_general_admin': sga,
+                    'operating_income': operating_income,
+                    'income_before_tax': income_before_tax,
+                    'net_income': net_income,
                     # 재무상태표 (Balance Sheet)
-                    'assets': balance.get('자산총계', 0),
-                    'current_assets': balance.get('유동자산', 0),
-                    'non_current_assets': balance.get('비유동자산', 0),
-                    'cash_and_equivalents': balance.get('현금및현금성자산', 0),
-                    'inventory': balance.get('재고자산', 0),
-                    'accounts_receivable': balance.get('매출채권', 0),
-                    'liabilities': balance.get('부채총계', 0),
-                    'current_liabilities': balance.get('유동부채', 0),
-                    'non_current_liabilities': balance.get('비유동부채', 0),
-                    'accounts_payable': balance.get('매입채무', 0),
-                    'equity': balance.get('자본총계', 0),
-                    'retained_earnings': balance.get('이익잉여금', 0),
+                    'assets': total_assets,
+                    'current_assets': current_assets,
+                    'non_current_assets': non_current_assets,
+                    'liabilities': total_liabilities,
+                    'current_liabilities': current_liabilities,
+                    'non_current_liabilities': non_current_liabilities,
+                    'equity': total_equity,
                     # 현금흐름표 (Cash Flow Statement)
-                    'operating_cash_flow': cashflow.get('영업활동으로인한현금흐름', 
-                                                        cashflow.get('영업활동현금흐름', 0)),
-                    'investing_cash_flow': cashflow.get('투자활동으로인한현금흐름',
-                                                        cashflow.get('투자활동현금흐름', 0)),
-                    'financing_cash_flow': cashflow.get('재무활동으로인한현금흐름',
-                                                        cashflow.get('재무활동현금흐름', 0)),
-                    'cash_increase': cashflow.get('현금의증가(감소)', 
-                                                  cashflow.get('현금및현금성자산의증가', 0)),
-                    'beginning_cash': cashflow.get('기초현금및현금성자산', 0),
-                    'ending_cash': cashflow.get('기말현금및현금성자산', 0)
+                    'operating_cash_flow': op_cf,
+                    'investing_cash_flow': inv_cf,
+                    'financing_cash_flow': fin_cf,
+                    'cash_increase': cash_increase,
+                    'free_cash_flow': free_cash_flow,
+                    'depreciation_amortization': depreciation,
+                    # 파생 지표
+                    'ebitda': data.get('ebitda', 0) or 0,
+                    'eps': data.get('eps_basic', 0) or 0,
+                    'eps_diluted': data.get('eps_diluted', 0) or 0,
+                    'bps': data.get('bps', 0) or 0,
+                    'shares_outstanding': data.get('shares_outstanding', 0) or 0,
+                    'roa': data.get('roa', 0) or 0,
+                    'roe': data.get('roe', 0) or 0,
+                    'gross_margin': data.get('gross_margin', 0) or 0,
+                    'operating_margin': data.get('operating_margin', 0) or 0,
+                    'net_margin': data.get('net_margin', 0) or 0,
+                    'debt_ratio': data.get('debt_ratio', 0) or 0,
+                    'current_ratio': data.get('current_ratio', 0) or 0,
+                    'equity_ratio': data.get('equity_ratio', 0) or 0,
                 })
             
             return statements
